@@ -38,9 +38,9 @@ def compute_s_rep(f: ReputationFeatures) -> float:
 
 
 def compute_s_ctx(f: ContextFeatures) -> float:
-    """S_ctx = weighted average of context features."""
-    # Weights: f_ctx1=0.3 (mismatch), f_ctx2=0.2 (urgency), f_ctx3=0.3 (headers), f_ctx4=0.2 (format)
-    score = 0.3 * f.f_ctx1 + 0.2 * f.f_ctx2 + 0.3 * f.f_ctx3 + 0.2 * f.f_ctx4
+    """S_ctx = weighted average of context features (thesis formula, δ weights)."""
+    # Weights per thesis: δ₁=0.30 (mismatch), δ₂=0.25 (urgency), δ₃=0.25 (headers), δ₄=0.20 (format)
+    score = 0.30 * f.f_ctx1 + 0.25 * f.f_ctx2 + 0.25 * f.f_ctx3 + 0.20 * f.f_ctx4
     return round(max(0.0, min(1.0, score)), 4)
 
 

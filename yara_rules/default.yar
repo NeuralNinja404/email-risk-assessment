@@ -95,7 +95,7 @@ rule Suspicious_HTML_Smuggling
         $base64 = "base64" ascii
 
     condition:
-        ($blob or $create_url) and $atob and $base64
+        ($blob or $create_url) and $atob and ($base64 or $download)
 }
 
 rule Suspicious_LNK_Command

@@ -230,8 +230,11 @@ def analyze(file_path: str, file_name: str) -> SignatureFeatures:
 
     # Check container contents
     inner_files = extract_container(file_path)
+    risky_extensions = HIGH_RISK_EXTENSIONS | MEDIUM_RISK_EXTENSIONS | LOW_RISK_EXTENSIONS
+    inner_exts: list[str] = []
     for inner in inner_files:
-        if inner["extension"] in HIGH_RISK_EXTENSIONS:
+        inner_exts.append(inner["extension"])
+        if inner["extension"] in risky_extensions:
             # Boost signature score for risky inner files
             f_sig1 = min(f_sig1 + 0.3, 1.0)
             f_sig2 = 1.0
@@ -242,4 +245,5 @@ def analyze(file_path: str, file_name: str) -> SignatureFeatures:
         f_sig3=f_sig3,
         yara_matches=yara_matches,
         hash_known_malicious=hash_known,
+        inner_extensions=inner_exts,
     )

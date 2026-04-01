@@ -132,7 +132,12 @@ def analyze_format_risk(file_name: str) -> float:
 # ── Main Context Analysis ──
 
 
-def analyze(meta: EmailMetadata, file_name: str, detected_mime: str) -> ContextFeatures:
+def analyze(
+    meta: EmailMetadata,
+    file_name: str,
+    detected_mime: str,
+    inner_extensions: list[str] | None = None,
+) -> ContextFeatures:
     """Run full context analysis."""
     # f_ctx1: file type mismatch
     f_ctx1 = analyze_file_type_mismatch(file_name, detected_mime)
@@ -143,8 +148,11 @@ def analyze(meta: EmailMetadata, file_name: str, detected_mime: str) -> ContextF
     # f_ctx3: header anomalies
     f_ctx3 = analyze_headers(meta)
 
-    # f_ctx4: file format risk
+    # f_ctx4: file format risk — use riskiest inner file if container
     f_ctx4 = analyze_format_risk(file_name)
+    if inner_extensions:
+        inner_risk = max(analyze_format_risk(f"x{ext}") for ext in inner_extensions)
+        f_ctx4 = max(f_ctx4, inner_risk)
 
     ext_mime = ""
     ext = Path(file_name).suffix.lower()

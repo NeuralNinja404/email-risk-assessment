@@ -77,6 +77,7 @@ class SignatureFeatures(BaseModel):
     f_sig3: float = 0.0  # AV confidence level (norm)
     yara_matches: list[str] = Field(default_factory=list)
     hash_known_malicious: bool = False
+    inner_extensions: list[str] = Field(default_factory=list)  # extensions found inside containers
 
 
 class BehavioralFeatures(BaseModel):

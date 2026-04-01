@@ -49,7 +49,10 @@ async def handle_message(data: dict) -> None:
     rep_task = asyncio.create_task(
         reputation.analyze(task.file_sha256, task.email_metadata.sender_domain)
     )
-    ctx_features = context.analyze(task.email_metadata, task.file_name, detected_mime)
+    ctx_features = context.analyze(
+        task.email_metadata, task.file_name, detected_mime,
+        inner_extensions=sig_features.inner_extensions,
+    )
     rep_features = await rep_task
 
     # Step 5: Compute preliminary scores for sandbox trigger decision
