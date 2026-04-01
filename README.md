@@ -1,94 +1,99 @@
 # Email Risk Assessment
 
-Гібридний метод інтегральної оцінки ризику вкладень електронної пошти в корпоративному середовищі.
+Hybrid method for integral risk assessment of email attachments in a corporate environment.
 
-Мікросервісна система для автоматичного аналізу вкладень електронної пошти з обчисленням інтегральної оцінки ризику на основі чотирьох компонентів: сигнатурного, поведінкового, репутаційного та контекстного.
+A microservice-based system for automated email attachment analysis that computes an integral risk score from four components: signature-based, behavioral, reputation, and contextual.
 
-## Архітектура
+## Architecture
 
 ```
-┌─────────┐    Kafka     ┌────────────┐   Kafka    ┌─────────┐   Kafka    ┌────────┐   Kafka    ┌───────┐
-│ Ingest  │──────────────▶│ Extractor  │───────────▶│ Scoring │───────────▶│ Policy │───────────▶│ Audit │
-│ (HTTP)  │ tasks.extract │ (Features) │ tasks.score│  (R)    │tasks.policy│(Decision)│tasks.audit│ (SIEM)│
-└─────────┘              └────────────┘            └─────────┘           └────────┘            └───────┘
-     │                        │                        │                     │                     │
-     └────────────────────────┴────────────────────────┴─────────────────────┴─────────────────────┘
-                                            PostgreSQL + Redis
+                    tasks.extract        tasks.score        tasks.policy       tasks.audit
+┌──────────┐       ┌─────────────┐      ┌──────────┐      ┌────────────┐      ┌─────────┐
+│  Ingest  │──────▶│  Extractor  │─────▶│ Scoring  │─────▶│   Policy   │─────▶│  Audit  │
+│  (HTTP)  │ Kafka │ (Features)  │ Kafka│   (R)    │ Kafka│ (Decision) │ Kafka│  (SIEM) │
+└────┬─────┘       └──────┬──────┘      └────┬─────┘      └─────┬──────┘      └────┬────┘
+     │                    │                   │                  │                   │
+     └────────────────────┴───────────────────┴──────────────────┴───────────────────┘
+                                    PostgreSQL + Redis
 ```
 
-### Сервіси
+### Services
 
-| Сервіс | Опис | Порт |
-|--------|------|------|
-| **Ingest** | FastAPI HTTP API — приймає вкладення та email-метадані | 8000 |
-| **Extractor** | Аналіз features: YARA, reputation APIs, контекст email | — |
-| **Scoring** | Обчислює R = w₁·S_sig + w₂·S_beh + w₃·S_rep + w₄·S_ctx | — |
-| **Policy** | Класифікація: LOW / MEDIUM / HIGH → ALLOW / HOLD / QUARANTINE | — |
-| **Audit** | CEF + JSON логування для SIEM | — |
+| Service | Description | Port |
+|---------|-------------|------|
+| **Ingest** | FastAPI HTTP API — receives attachments and email metadata | 8000 |
+| **Extractor** | Feature analysis: YARA, reputation APIs, email context | — |
+| **Scoring** | Computes R = w₁·S_sig + w₂·S_beh + w₃·S_rep + w₄·S_ctx | — |
+| **Policy** | Classification: LOW / MEDIUM / HIGH → ALLOW / HOLD / QUARANTINE | — |
+| **Audit** | CEF + JSON logging for SIEM integration | — |
 
-## Формула інтегральної оцінки ризику
+## Risk Scoring Formula
 
 ```
 R = w₁·S_sig + w₂·S_beh + w₃·S_rep + w₄·S_ctx
 ```
 
-| Компонент | Вага | Опис |
-|-----------|------|------|
-| S_sig | 0.20 | Сигнатурний аналіз (YARA, hash matching) |
-| S_beh | 0.40 | Поведінковий аналіз (sandbox) |
-| S_rep | 0.25 | Репутаційний аналіз (VirusTotal, OTX, MalwareBazaar) |
-| S_ctx | 0.15 | Контекстний аналіз (SPF/DKIM/DMARC, urgency markers) |
+| Component | Weight | Description |
+|-----------|--------|-------------|
+| S_sig | 0.20 | Signature analysis (YARA rules, hash matching) |
+| S_beh | 0.40 | Behavioral analysis (sandbox execution) |
+| S_rep | 0.25 | Reputation analysis (VirusTotal, OTX, MalwareBazaar) |
+| S_ctx | 0.15 | Contextual analysis (SPF/DKIM/DMARC, urgency markers) |
 
-Класифікація:
-- **LOW** (R < 0.30) → дозволити доставку
-- **MEDIUM** (0.30 ≤ R < 0.70) → утримати для перевірки аналітиком
-- **HIGH** (R ≥ 0.70) → карантин + інцидент SOC
+When a component is unavailable (e.g. sandbox not configured), its weight is redistributed proportionally among the remaining components.
 
-## Технологічний стек
+Risk classification:
+- **LOW** (R < 0.30) — allow delivery
+- **MEDIUM** (0.30 ≤ R < 0.70) — hold for analyst review
+- **HIGH** (R ≥ 0.70) — quarantine + SOC incident
+
+Gray zones (±0.03 around thresholds) flag the result for additional review.
+
+## Tech Stack
 
 - **Python 3.12+**
-- **FastAPI** — HTTP API (Ingest)
-- **Apache Kafka** — message broker між сервісами
-- **PostgreSQL 16** — зберігання задач, результатів, аудит-логів
-- **Redis 7** — кешування reputation API відповідей
-- **YARA** — сигнатурне сканування
-- **Docker Compose** — оркестрація
+- **FastAPI** — HTTP API (Ingest service)
+- **Apache Kafka** — message broker between services
+- **PostgreSQL 16** — tasks, results, and audit log persistence
+- **Redis 7** — reputation API response caching
+- **YARA** — signature-based file scanning
+- **Docker Compose** — orchestration
 
-## Швидкий старт
+## Quick Start
 
-### Вимоги
+### Prerequisites
 
 - Docker + Docker Compose
-- Python 3.12+ (для локальної розробки)
+- Python 3.12+ (for local development)
 
-### Запуск через Docker
+### Run with Docker
 
 ```bash
 cp .env.example .env
-# Заповнити API ключі у .env (VirusTotal, OTX та ін.)
+# Fill in API keys in .env (VirusTotal, OTX, etc.)
 
 docker compose up -d --build
 ```
 
-Сервіс буде доступний на `http://localhost:8000`.
+The API will be available at `http://localhost:8000`.
 
-### Локальна розробка
+### Local Development
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Запустити інфраструктуру
+# Start infrastructure only
 docker compose up -d kafka postgres redis kafka-init
 
-# Запустити тести
+# Run tests
 make test
 ```
 
 ## API
 
-### Відправити вкладення на аналіз
+### Submit an Attachment for Analysis
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/submit \
@@ -97,19 +102,23 @@ curl -X POST http://localhost:8000/api/v1/submit \
   -F 'email_metadata_json={"sender":"user@example.com","sender_domain":"example.com","subject":"Report","spf_result":"pass","dkim_result":"pass","dmarc_result":"pass"}'
 ```
 
-Відповідь:
+Response:
 ```json
-{"task_id": "550e8400-e29b-41d4-a716-446655440000", "status": "PENDING", "message": "Attachment accepted for analysis"}
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "PENDING",
+  "message": "Attachment accepted for analysis"
+}
 ```
 
-### Перевірити статус
+### Check Status
 
 ```bash
 curl http://localhost:8000/api/v1/status/550e8400-e29b-41d4-a716-446655440000 \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-Відповідь:
+Response:
 ```json
 {
   "task_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -121,63 +130,63 @@ curl http://localhost:8000/api/v1/status/550e8400-e29b-41d4-a716-446655440000 \
 }
 ```
 
-## Структура проєкту
+## Project Structure
 
 ```
 email-risk-assessment/
-├── docker-compose.yml          # Kafka, PostgreSQL, Redis + 5 сервісів
-├── pyproject.toml              # Залежності та конфігурація
+├── docker-compose.yml          # Kafka, PostgreSQL, Redis + 5 services
+├── pyproject.toml              # Dependencies and tooling config
 ├── Makefile                    # make up / test / lint / migrate
-├── .env.example                # Шаблон конфігурації
-├── shared/                     # Спільна бібліотека
-│   ├── schemas.py              # Pydantic моделі
-│   ├── config.py               # Налаштування (pydantic-settings)
+├── .env.example                # Configuration template
+├── shared/                     # Shared library
+│   ├── schemas.py              # Pydantic models
+│   ├── config.py               # Settings (pydantic-settings)
 │   ├── mq.py                   # Kafka producer/consumer helpers
 │   ├── db.py                   # SQLAlchemy async engine
-│   ├── models.py               # ORM моделі (AnalysisTask, AnalysisResult, AuditLog)
+│   ├── models.py               # ORM models (AnalysisTask, AnalysisResult, AuditLog)
 │   └── logging.py              # Structured logging (structlog)
 ├── services/
 │   ├── ingest/main.py          # FastAPI — POST /submit, GET /status
 │   ├── extractor/
-│   │   ├── main.py             # Orchestrator — координує аналіз
-│   │   ├── signature.py        # YARA + hash + ZIP extraction
+│   │   ├── main.py             # Orchestrator — coordinates analysis pipeline
+│   │   ├── signature.py        # YARA + hash matching + ZIP extraction
 │   │   ├── reputation.py       # VirusTotal, OTX, MalwareBazaar + circuit breaker
 │   │   ├── context.py          # SPF/DKIM/DMARC, urgency markers, file type mismatch
 │   │   ├── behavioral.py       # Sandbox stub (CAPE integration planned)
-│   │   └── normalizer.py       # Feature → component scores [0, 1]
-│   ├── scoring/engine.py       # R = Σ wᵢ·Sᵢ з перерозподілом ваг
-│   ├── policy/rules.py         # Threshold classification + gray zone
-│   └── audit/formatter.py      # CEF + JSON для SIEM
-├── tests/                      # pytest — 42 тести
-├── yara_rules/default.yar      # Базові YARA правила
+│   │   └── normalizer.py       # Raw features → component scores [0, 1]
+│   ├── scoring/engine.py       # R = Σ wᵢ·Sᵢ with weight redistribution
+│   ├── policy/rules.py         # Threshold classification + gray zone handling
+│   └── audit/formatter.py      # CEF + JSON output for SIEM
+├── tests/                      # pytest — 42 tests
+├── yara_rules/default.yar      # Base YARA ruleset
 └── alembic/                    # Database migrations
 ```
 
-## Тестування
+## Testing
 
 ```bash
-make test          # Запуск всіх тестів
-make test-cov      # З coverage report
+make test          # Run all tests
+make test-cov      # With coverage report
 make lint          # Ruff linter
 ```
 
-42 unit-тести покривають: scoring engine, policy rules, normalizer, context analysis, audit formatter.
+42 unit tests covering: scoring engine, policy rules, normalizer, context analysis, audit formatter.
 
-## Конфігурація
+## Configuration
 
-Основні змінні середовища (`.env`):
+Key environment variables (`.env`):
 
-| Змінна | Опис | За замовч. |
-|--------|------|-----------|
-| `KAFKA_BOOTSTRAP_SERVERS` | Адреса Kafka broker | `kafka:9092` |
-| `POSTGRES_HOST` / `POSTGRES_DB` | PostgreSQL підключення | `postgres` / `emailrisk` |
-| `REDIS_URL` | Redis URL для кешування | `redis://redis:6379/0` |
-| `API_KEY` | Ключ аутентифікації API | *(обов'язково змінити)* |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker address | `kafka:9092` |
+| `POSTGRES_HOST` / `POSTGRES_DB` | PostgreSQL connection | `postgres` / `emailrisk` |
+| `REDIS_URL` | Redis URL for caching | `redis://redis:6379/0` |
+| `API_KEY` | API authentication key | *(must change)* |
 | `VIRUSTOTAL_API_KEY` | VirusTotal v3 API key | — |
 | `ALIENVAULT_OTX_API_KEY` | AlienVault OTX API key | — |
-| `WEIGHT_SIGNATURE` / `BEHAVIORAL` / `REPUTATION` / `CONTEXT` | Ваги компонентів | 0.20 / 0.40 / 0.25 / 0.15 |
-| `THRESHOLD_LOW` / `THRESHOLD_HIGH` | Пороги класифікації | 0.30 / 0.70 |
+| `WEIGHT_SIGNATURE` / `BEHAVIORAL` / `REPUTATION` / `CONTEXT` | Component weights | 0.20 / 0.40 / 0.25 / 0.15 |
+| `THRESHOLD_LOW` / `THRESHOLD_HIGH` | Classification thresholds | 0.30 / 0.70 |
 
-## Ліцензія
+## License
 
 MIT
