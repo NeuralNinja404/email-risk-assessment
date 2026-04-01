@@ -7,14 +7,13 @@ A microservice-based system for automated email attachment analysis that compute
 ## Architecture
 
 ```
-                    tasks.extract        tasks.score        tasks.policy       tasks.audit
-┌──────────┐       ┌─────────────┐      ┌──────────┐      ┌────────────┐      ┌─────────┐
-│  Ingest  │──────▶│  Extractor  │─────▶│ Scoring  │─────▶│   Policy   │─────▶│  Audit  │
-│  (HTTP)  │ Kafka │ (Features)  │ Kafka│   (R)    │ Kafka│ (Decision) │ Kafka│  (SIEM) │
-└────┬─────┘       └──────┬──────┘      └────┬─────┘      └─────┬──────┘      └────┬────┘
-     │                    │                   │                  │                   │
-     └────────────────────┴───────────────────┴──────────────────┴───────────────────┘
-                                    PostgreSQL + Redis
+Ingest ──► Extractor ──► Scoring ──► Policy ──► Audit
+(HTTP)     (Features)      (R)     (Decision)   (SIEM)
+       Kafka          Kafka      Kafka       Kafka
+     tasks.extract  tasks.score tasks.policy tasks.audit
+  │         │           │          │           │
+  └─────────┴───────────┴──────────┴───────────┘
+                 PostgreSQL + Redis
 ```
 
 ### Services
